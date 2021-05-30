@@ -21,10 +21,10 @@ func createSqliteTable(db *sql.DB) {
 	}
 	// fmt.Println(reflect.TypeOf(UserTable))
 	UserTable.Exec()
-	fmt.Println("User table created ")
+	fmt.Println("User table created or as it is if already created")
 }
 
-func insertIntoTable(db *sql.DB, student *student_details) {
+func insertIntoTable(db *sql.DB, name string, rollno int) {
 
 	insertStudent_info := `INSERT INTO User(rollno, name) VALUES(?, ?)`
 
@@ -33,7 +33,7 @@ func insertIntoTable(db *sql.DB, student *student_details) {
 	if err != nil {
 		panic(err)
 	}
-	insertStudent.Exec(student.rollno, student.name)
+	insertStudent.Exec(rollno, name)
 	fmt.Println("inserted Student in the table")
 }
 
@@ -46,12 +46,6 @@ func main() {
 		panic(err)
 	}
 
-	type student_details struct {
-		name   string
-		rollno int
-	}
-	student2 := student_details{name: "shyam", rollno: 1111}
-
 	createSqliteTable(my_database)
-	insertIntoTable(my_database, student2)
+	insertIntoTable(my_database, "shyam", 1111)
 }
