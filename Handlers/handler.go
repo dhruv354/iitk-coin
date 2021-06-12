@@ -13,8 +13,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-/*****************utility functions***********/
-
 var jwt_key = []byte("dhruv_singhal")
 
 type UserData struct {
