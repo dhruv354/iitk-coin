@@ -1,8 +1,3 @@
-
-<<<<<<< HEAD
-=======
-
->>>>>>> c7da5b9065233ca388982a5a8d35f910f2924657
 package main
 
 import (
@@ -15,6 +10,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+//function to create table which will store user rollno
+//name and password
 func createSqliteTable(db *sql.DB) {
 	//creating a string with table info
 	UserTable_info := `CREATE TABLE IF NOT EXISTS User(
@@ -33,6 +30,7 @@ func createSqliteTable(db *sql.DB) {
 
 }
 
+//function to create table for user_coin data
 func UserCoinTable(db *sql.DB) {
 	UserCoin_info := `CREATE TABLE IF NOT EXISTS UserData(
 		"rollno" INTEGER NOT NULL,
@@ -63,7 +61,7 @@ func main() {
 	http.HandleFunc("/getcoins", handler.GetUserCoins)
 	http.HandleFunc("/addcoins", handler.AddCoins)
 	http.HandleFunc("/transfercoins", handler.TransferCoin)
-	// start the server on port 8000
+	// start the server on port 8080
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
