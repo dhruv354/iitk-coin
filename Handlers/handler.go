@@ -190,41 +190,6 @@ func SignupRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// rows, err := database.Query("SELECT name, rollno from User")
-		// if err != nil {
-		// 	fmt.Println("error")
-		// 	panic(err)
-		// }
-
-		// var database_name string
-		// var database_rollno int
-
-		// var flag bool = true
-		// var temp1 bool = false
-		// var temp2 bool = false
-
-		// for rows.Next() {
-		// 	rows.Scan(&database_name, &database_rollno)
-		// 	if database_name == user_data.Name {
-		// 		temp1 = true
-		// 	}
-		// 	if database_rollno == user_data.Rollno {
-		// 		temp2 = true
-		// 	}
-		// 	if temp1 || temp2 {
-		// 		flag = false
-		// 		fmt.Fprintf(w, "user already exists")
-		// 		return
-		// 	}
-		// 	time.Sleep(200 * time.Millisecond)
-		// }
-
-		// time.Sleep(3 * time.Second)
-		// if flag {
-		// 	sqlite3_func.InsertIntoTable(database, name, rollno, hashed_password)
-		// 	fmt.Fprintf(w, "signed in")
-		// }
-
 		sqlite3Func.InsertIntoTable(database, name, rollno, hashed_password)
 		w.Write([]byte("USer with this rollno created"))
 	}
@@ -258,14 +223,12 @@ func GetUserCoins(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 		panic(err)
 	}
-	print("going to scan rows")
 
 	var rollno int
 	var coins int
 
 	for rows.Next() {
 		rows.Scan(&rollno, &coins)
-		fmt.Println("scanning")
 		if rollno == user_coins.Rollno {
 			fmt.Fprintf(w, "you have coins: %d", coins)
 			return
@@ -350,42 +313,32 @@ func TransferCoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//if both user exists
-	//get current balance holded by both the users
-	var user1_balance int
-	var user2_balance int
-	row1 := database.QueryRow(`SELECT coins FROM USERDATA WHERE rollno = ?`, transfer_data.Rollno1)
-	row2 := database.QueryRow(`SELECT coins FROM USERDATA WHERE rollno = ?`, transfer_data.Rollno2)
-
-	err1 := row1.Scan(&user1_balance)
-	err2 := row2.Scan(&user2_balance)
-
-	if err1 != nil && err1 != sql.ErrNoRows {
-		// log the error
-		fmt.Println(err1)
-		panic(err1)
-	}
-
-	if err2 != nil && err2 != sql.ErrNoRows {
-		// log the error
-		fmt.Println(err2)
-		panic(err2)
-	}
-
-	// check if sender has sufficient coins in his account
-	if user2_balance < transfer_data.Coins {
-		fmt.Fprintf(w, "user2 does not have sufficient money")
+	tx, err := database.Begin()
+	if err != nil {
+		fmt.Println("error lies in database.begin()")
 		return
 	}
 
-	//if he have enough coins to be sent
-	statement, err := database.Prepare(`UPDATE  UserData SET coins = ? WHERE rollno = ?`)
+	//statement and updates in the same statement to solve problems during concurrency
+	_, err1 := database.Exec(`UPDATE  UserData SET coins = coins + ? WHERE rollno = ?`, transfer_data.Coins, transfer_data.Rollno1)
 
-	if err != nil {
-		panic(err)
+	if err1 != nil {
+		//if some error rollback databse to initial condition and print the error
+		fmt.Println("error lies in database.Exec() err1")
+		tx.Rollback()
+		return
+		// panic(err)
 	}
 
-	statement.Exec(user1_balance+transfer_data.Coins, transfer_data.Rollno1)
-	statement.Exec(user2_balance-transfer_data.Coins, transfer_data.Rollno2)
+	_, err2 := database.Exec(`UPDATE UserData SET coins = coins - ?  WHERE rollno = ? AND coins - ? >= 0`, transfer_data.Coins, transfer_data.Rollno2, transfer_data.Coins)
+
+	if err2 != nil {
+		//if some error rollback databse to initial condition and print the error
+		fmt.Println(err2)
+		fmt.Println("error lies in database.Exec() err2")
+		tx.Rollback()
+		return
+	}
+	tx.Commit()
 	fmt.Fprintf(w, "transaction is successful")
 }
