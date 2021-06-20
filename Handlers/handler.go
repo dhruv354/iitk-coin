@@ -14,8 +14,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-/*****************utility functions***********/
-
 var jwt_key = []byte("dhruv_singhal")
 
 type UserData struct {
@@ -305,16 +303,6 @@ func AddCoins(w http.ResponseWriter, r *http.Request) {
 	if !sqlite3Func.IsUserExists(database, user_coins.Rollno) {
 		fmt.Fprintf(w, "user with this rollno does not exists")
 		return
-	}
-
-	//check if this rollno exists in Userdata if not then create its data in the database
-	if !sqlite3Func.IsUserCoinExists(database, user_coins.Rollno) {
-		insertcoin_info := `INSERT INTO UserData(rollno, coins) VALUES(?, ?)`
-		statement, err := database.Prepare(insertcoin_info)
-		if err != nil {
-			panic(err)
-		}
-		statement.Exec(user_coins.Rollno, 0)
 	}
 
 	sqlite3Func.UpdateUserCoins(database, user_coins.Rollno, user_coins.Coins)
