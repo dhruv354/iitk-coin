@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -26,6 +27,17 @@ type UserData struct {
 type Claims struct {
 	Username string `json:"username"`
 	jwt.StandardClaims
+}
+
+type UserCoins struct {
+	Rollno int `json:"rollno"`
+	Coins  int `json:"coins"`
+}
+
+type transferBWUsers struct {
+	Rollno1 int `json:"rollno1"` //sender rollno
+	Rollno2 int `json:"rollno2"` //receiver rollno
+	Coins   int `json:"coins"`   //Coins to be transfered
 }
 
 /*****************login route handler ******************************/
@@ -92,7 +104,7 @@ func LoginRoute(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-
+		time.Sleep(1 * time.Second)
 		if !userFound {
 			fmt.Fprintf(w, "Oh No! invalid username or password ")
 		}
@@ -149,8 +161,6 @@ func Secretpage(w http.ResponseWriter, r *http.Request) {
 
 func SignupRoute(w http.ResponseWriter, r *http.Request) {
 
-	// w.Header().Set("Content-Type", "application/json")
-	// w.WriteHeader(http.StatusOk)
 	fmt.Println("inside signup route")
 	// fmt.Println(r)
 	if r.Method == "GET" {
@@ -170,6 +180,7 @@ func SignupRoute(w http.ResponseWriter, r *http.Request) {
 
 		database, err := sql.Open("sqlite3", "../iitk-coin/Student_info.db")
 		if err != nil {
+			fmt.Println("error", err)
 			panic(err)
 		} else {
 			fmt.Println("Connected with database")
@@ -181,31 +192,212 @@ func SignupRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// rows, err := database.Query("SELECT name, rollno from User")
+		// if err != nil {
+		// 	fmt.Println("error")
+		// 	panic(err)
+		// }
+
+		// var database_name string
+		// var database_rollno int
+
+		// var flag bool = true
+		// var temp1 bool = false
+		// var temp2 bool = false
+
+		// for rows.Next() {
+		// 	rows.Scan(&database_name, &database_rollno)
+		// 	if database_name == user_data.Name {
+		// 		temp1 = true
+		// 	}
+		// 	if database_rollno == user_data.Rollno {
+		// 		temp2 = true
+		// 	}
+		// 	if temp1 || temp2 {
+		// 		flag = false
+		// 		fmt.Fprintf(w, "user already exists")
+		// 		return
+		// 	}
+		// 	time.Sleep(200 * time.Millisecond)
+		// }
+
+		// time.Sleep(3 * time.Second)
+		// if flag {
+		// 	sqlite3_func.InsertIntoTable(database, name, rollno, hashed_password)
+		// 	fmt.Fprintf(w, "signed in")
+		// }
+
 		sqlite3Func.InsertIntoTable(database, name, rollno, hashed_password)
 		w.Write([]byte("USer with this rollno created"))
 	}
 }
 
-// /**********************/
+/**********************route to get user coins ******************************/
+func GetUserCoins(w http.ResponseWriter, r *http.Request) {
 
-// func isUserExists(db *sql.DB, rollno int) bool {
-// 	row := db.QueryRow("SELECT rollno  from User where rollno= ? ", rollno)
-// 	temp := ""
-// 	row.Scan(&temp)
-// 	return temp != ""
-// }
+	fmt.Println("inside getUserCoins Route")
 
-// func insertIntoTable(db *sql.DB, name string, rollno int, password string) {
-// 	fmt.Println("inside insetintotable")
+	if r.Method == "POST" {
+		fmt.Println("this route can only handle GET request")
+		return
+	}
 
-// 	insertStudent_info := `INSERT INTO User(rollno, name, password) VALUES(?, ?, ?)`
+	var user_coins UserCoins
+	json.NewDecoder(r.Body).Decode(&user_coins)
 
-// 	insertStudent, err := db.Prepare(insertStudent_info)
+	fmt.Println(user_coins)
+	//open the database
+	database, err := sql.Open("sqlite3", "../iitk-coin/Student_info.db")
+	if err != nil {
+		log.Fatal(err.Error())
+		return
+	} else {
+		fmt.Println("connected with Database")
+	}
 
-// 	if err != nil {
-// 		fmt.Println(err)
-// 		panic(err)
-// 	}
-// 	insertStudent.Exec(rollno, name, password)
-// 	fmt.Println("inserted Student in the table")
-// }
+	rows, err := database.Query("SELECT rollno ,coins FROM UserData")
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+	print("going to scan rows")
+
+	var rollno int
+	var coins int
+
+	for rows.Next() {
+		rows.Scan(&rollno, &coins)
+		fmt.Println("scanning")
+		if rollno == user_coins.Rollno {
+			fmt.Fprintf(w, "you have coins: %d", coins)
+			return
+		}
+	}
+
+	fmt.Fprintf(w, "this rollno does not exist")
+}
+
+/****************************************handler to award coins to the user****************************/
+
+func AddCoins(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Println("inside AddCoins function")
+
+	//handling GET requests
+	if r.Method == "GET" {
+		fmt.Fprintf(w, "this route is only for post request so please make a post request")
+		return
+	}
+
+	var user_coins UserCoins
+
+	json.NewDecoder(r.Body).Decode(&user_coins)
+
+	//open the database of Student_info
+	database, err := sql.Open("sqlite3", "../iitk-coin/Student_info.db")
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+	fmt.Println("successfully connected with database")
+
+	//check if user with that rollno exists
+	if !sqlite3Func.IsUserExists(database, user_coins.Rollno) {
+		fmt.Fprintf(w, "user with this rollno does not exists")
+		return
+	}
+
+	//check if this rollno exists in Userdata if not then create its data in the database
+	if !sqlite3Func.IsUserCoinExists(database, user_coins.Rollno) {
+		insertcoin_info := `INSERT INTO UserData(rollno, coins) VALUES(?, ?)`
+		statement, err := database.Prepare(insertcoin_info)
+		if err != nil {
+			panic(err)
+		}
+		statement.Exec(user_coins.Rollno, 0)
+	}
+
+	sqlite3Func.UpdateUserCoins(database, user_coins.Rollno, user_coins.Coins)
+	fmt.Fprintf(w, "added coins in your wallet")
+
+	//display userdata
+	rows, err := database.Query(`SELECT rollno, coins from USERDATA`)
+	if err != nil {
+		panic(err)
+	}
+	var rollno int
+	var coins int
+
+	for rows.Next() {
+		rows.Scan(&rollno, &coins)
+		log.Println("rollno ", rollno, " ", "coins: ", coins)
+	}
+}
+
+/************************************Handler to transfer coins between two users********************/
+
+func TransferCoin(w http.ResponseWriter, r *http.Request) {
+
+	//if get request return
+	if r.Method == "GET" {
+		fmt.Fprintf(w, "only post request is possible at this route")
+		return
+	}
+
+	var transfer_data transferBWUsers
+	json.NewDecoder(r.Body).Decode(&transfer_data)
+
+	database, err := sql.Open("sqlite3", "../iitk-coin/Student_info.db")
+	if err != nil {
+		panic(err)
+	}
+
+	//checking if both users have an account or not
+	isUser1Exists := sqlite3Func.IsUserExists(database, transfer_data.Rollno1)
+
+	isUser2Exists := sqlite3Func.IsUserExists(database, transfer_data.Rollno2)
+
+	if !isUser1Exists || !isUser2Exists {
+		fmt.Fprintf(w, "Either user1 or user2 does not exists")
+		return
+	}
+
+	//if both user exists
+	//get current balance holded by both the users
+	var user1_balance int
+	var user2_balance int
+	row1 := database.QueryRow(`SELECT coins FROM USERDATA WHERE rollno = ?`, transfer_data.Rollno1)
+	row2 := database.QueryRow(`SELECT coins FROM USERDATA WHERE rollno = ?`, transfer_data.Rollno2)
+
+	err1 := row1.Scan(&user1_balance)
+	err2 := row2.Scan(&user2_balance)
+
+	if err1 != nil && err1 != sql.ErrNoRows {
+		// log the error
+		fmt.Println(err1)
+		panic(err1)
+	}
+
+	if err2 != nil && err2 != sql.ErrNoRows {
+		// log the error
+		fmt.Println(err2)
+		panic(err2)
+	}
+
+	// check if sender has sufficient coins in his account
+	if user2_balance < transfer_data.Coins {
+		fmt.Fprintf(w, "user2 does not have sufficient money")
+		return
+	}
+
+	//if he have enough coins to be sent
+	statement, err := database.Prepare(`UPDATE  UserData SET coins = ? WHERE rollno = ?`)
+
+	if err != nil {
+		panic(err)
+	}
+
+	statement.Exec(user1_balance+transfer_data.Coins, transfer_data.Rollno1)
+	statement.Exec(user2_balance-transfer_data.Coins, transfer_data.Rollno2)
+	fmt.Fprintf(w, "transaction is successful")
+}

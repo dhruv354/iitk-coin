@@ -15,5 +15,8 @@ func DoesPasswordsMatch(existing_password string, entered_password []byte) bool 
 	existing_password_hashed := []byte(existing_password)
 	//compare password
 	err := bcrypt.CompareHashAndPassword(existing_password_hashed, entered_password)
-	return err == nil
+	if err != nil {
+		return false
+	}
+	return true
 }

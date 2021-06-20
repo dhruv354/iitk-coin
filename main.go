@@ -1,7 +1,5 @@
 //
 
-// ***************************dinesh code**********************
-
 package main
 
 import (
@@ -32,18 +30,37 @@ func createSqliteTable(db *sql.DB) {
 
 }
 
+func UserCoinTable(db *sql.DB) {
+	UserCoin_info := `CREATE TABLE IF NOT EXISTS UserData(
+		"rollno" INTEGER NOT NULL,
+		"coins" INTEGER NOT NULL
+		);`
+
+	statement, err := db.Prepare(UserCoin_info)
+	if err != nil {
+		panic(err)
+	}
+	statement.Exec()
+	fmt.Println("user coins table created")
+}
+
 func main() {
-	database, err := sql.Open("sqlite3", "Student_info.db")
+	database, err := sql.Open("sqlite3", "./Student_info.db")
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("created my database")
 
 	createSqliteTable(database)
+	UserCoinTable(database)
 	// "Signin" and "Welcome" are the handlers that we will implement
 	http.HandleFunc("/login", handler.LoginRoute)
 	http.HandleFunc("/secretpage", handler.Secretpage)
 	http.HandleFunc("/signup", handler.SignupRoute)
+	http.HandleFunc("/getcoins", handler.GetUserCoins)
+	http.HandleFunc("/addcoins", handler.AddCoins)
+	http.HandleFunc("/transfercoins", handler.TransferCoin)
 	// start the server on port 8000
+
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
