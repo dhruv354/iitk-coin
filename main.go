@@ -15,9 +15,12 @@ import (
 func createSqliteTable(db *sql.DB) {
 	//creating a string with table info
 	UserTable_info := `CREATE TABLE IF NOT EXISTS User(
-		"rollno" INTEGER NOT NULL,
+		"rollno" INTEGER UNSIGNED NOT NULL,
 		"name" TEXT NOT NULL,
-		"password" TEXT NOT NULL
+		"password" TEXT NOT NULL,
+		"batch" INT UNSIGNED  NOT NULL,
+		"isAdmin" INT UNSIGNED NOT NULL,
+		"events" INT UNSIGNED NOT NULL
 		);`
 	//create table with above info
 	UserTable, err := db.Prepare(UserTable_info)
@@ -45,6 +48,23 @@ func UserCoinTable(db *sql.DB) {
 	fmt.Println("user coins table created")
 }
 
+func createTransactionTable(db *sql.DB) {
+	transaction := `CREATE TABLE IF NOT EXISTS Transaction_history(
+		"rollno" INTEGER UNSIGNED NOT NULL,
+		"rewards" INTEGER UNSIGNED NOT NULL,
+		"transfered_to" INTEGER UNSIGNED NOT NULL,
+		"transfered_amount" INTEGER UNSIGNED NOT NULL,
+		"redeems" INTEGER UNSIGNED NOT NULL,
+		"date" TEXT NOT NULL
+		);`
+	statement, err := db.Prepare(transaction)
+	if err != nil {
+		panic(err)
+	}
+	statement.Exec()
+	fmt.Println("trasaction  table created")
+}
+
 func main() {
 	database, err := sql.Open("sqlite3", "./Student_info.db")
 	if err != nil {
@@ -54,10 +74,12 @@ func main() {
 
 	createSqliteTable(database)
 	UserCoinTable(database)
+	createTransactionTable(database)
 	// "Signin" and "Welcome" are the handlers that we will implement
 	http.HandleFunc("/login", handler.LoginRoute)
 	http.HandleFunc("/secretpage", handler.Secretpage)
 	http.HandleFunc("/signup", handler.SignupRoute)
+	http.HandleFunc("/logout", handler.Logout)
 	http.HandleFunc("/getcoins", handler.GetUserCoins)
 	http.HandleFunc("/addcoins", handler.AddCoins)
 	http.HandleFunc("/transfercoins", handler.TransferCoin)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -20,10 +21,12 @@ type UserData struct {
 	Name     string `json:"name"`
 	Rollno   int    `json:"rollno"`
 	Password string `json:"password"`
+	Batch    int    `json:"batch"`
 }
 
 type Claims struct {
 	Username string `json:"username"`
+	Rollno   int    `json:"rollno"`
 	jwt.StandardClaims
 }
 
@@ -33,8 +36,8 @@ type UserCoins struct {
 }
 
 type transferBWUsers struct {
-	Rollno1 int `json:"rollno1"` //sender rollno
-	Rollno2 int `json:"rollno2"` //receiver rollno
+	Rollno1 int `json:"rollno1"` //receiver rollno
+	Rollno2 int `json:"rollno2"` //sender rollno
 	Coins   int `json:"coins"`   //Coins to be transfered
 }
 
@@ -78,6 +81,7 @@ func LoginRoute(w http.ResponseWriter, r *http.Request) {
 				//data to be stored in the cookie
 				claims := &Claims{
 					Username: user_data.Name,
+					Rollno:   user_data.Rollno,
 					StandardClaims: jwt.StandardClaims{
 						ExpiresAt: expirationTime.Unix(),
 					},
@@ -102,7 +106,6 @@ func LoginRoute(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		time.Sleep(1 * time.Second)
 		if !userFound {
 			fmt.Fprintf(w, "Oh No! invalid username or password ")
 		}
@@ -171,6 +174,7 @@ func SignupRoute(w http.ResponseWriter, r *http.Request) {
 		name := user_data.Name
 		password := user_data.Password
 		rollno := user_data.Rollno
+		batch := user_data.Batch
 		hashed_password, _ := utility.HashPassword(password)
 
 		// database_path, _ := filepath.Abs("..")
@@ -190,13 +194,34 @@ func SignupRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		sqlite3Func.InsertIntoTable(database, name, rollno, hashed_password)
+		sqlite3Func.InsertIntoTable(database, name, rollno, batch, hashed_password)
 		w.Write([]byte("USer with this rollno created"))
 	}
 }
 
+/************************logout endpoint**********************************/
+
+func Logout(w http.ResponseWriter, r *http.Request) {
+	c := http.Cookie{
+		Name:   "my_json_token",
+		MaxAge: -1}
+	http.SetCookie(w, &c)
+
+	w.Write([]byte("old cookie deleted!\n"))
+}
+
 /**********************route to get user coins ******************************/
 func GetUserCoins(w http.ResponseWriter, r *http.Request) {
+
+	// if !utility.IsLoggedin(w, r) {
+	// 	fmt.Fprintf(w, "first login in to access this endpoint")
+	// 	return
+	// }
+	isLogged, claims := utility.IsLoggedin(w, r)
+	if !isLogged {
+		fmt.Fprintf(w, "first login in to access this endpoint")
+		return
+	}
 
 	fmt.Println("inside getUserCoins Route")
 
@@ -226,10 +251,10 @@ func GetUserCoins(w http.ResponseWriter, r *http.Request) {
 
 	var rollno int
 	var coins int
-
+	print("claims.Rollno: ", claims.Rollno)
 	for rows.Next() {
 		rows.Scan(&rollno, &coins)
-		if rollno == user_coins.Rollno {
+		if rollno == claims.Rollno {
 			fmt.Fprintf(w, "you have coins: %d", coins)
 			return
 		}
@@ -238,9 +263,15 @@ func GetUserCoins(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "this rollno does not exist")
 }
 
-/****************************************handler to award coins to the user****************************/
+//****************************************handler to award coins to the user****************************/
 
 func AddCoins(w http.ResponseWriter, r *http.Request) {
+
+	isLogged, claims := utility.IsLoggedin(w, r)
+	if !isLogged {
+		fmt.Fprintf(w, "first login in to access this endpoint")
+		return
+	}
 
 	fmt.Println("inside AddCoins function")
 
@@ -249,10 +280,21 @@ func AddCoins(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "this route is only for post request so please make a post request")
 		return
 	}
+	//if current user is not admin
+	if claims.Rollno != 190294 {
+		fmt.Fprintf(w, "only admin is allowed to add coins into it")
+		return
+	}
 
 	var user_coins UserCoins
 
 	json.NewDecoder(r.Body).Decode(&user_coins)
+
+	//admin cannot
+	if user_coins.Rollno == 190294 {
+		fmt.Fprintf(w, "you are a admin so you cannot add coins to your wallet")
+		return
+	}
 
 	//open the database of Student_info
 	database, err := sql.Open("sqlite3", "../iitk-coin/Student_info.db")
@@ -267,22 +309,9 @@ func AddCoins(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "user with this rollno does not exists")
 		return
 	}
-
 	sqlite3Func.UpdateUserCoins(database, user_coins.Rollno, user_coins.Coins)
 	fmt.Fprintf(w, "added coins in your wallet")
 
-	//display userdata
-	rows, err := database.Query(`SELECT rollno, coins from USERDATA`)
-	if err != nil {
-		panic(err)
-	}
-	var rollno int
-	var coins int
-
-	for rows.Next() {
-		rows.Scan(&rollno, &coins)
-		log.Println("rollno ", rollno, " ", "coins: ", coins)
-	}
 }
 
 /************************************Handler to transfer coins between two users********************/
@@ -295,6 +324,11 @@ func TransferCoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isLogged, _ := utility.IsLoggedin(w, r)
+	if !isLogged {
+		fmt.Fprintf(w, "first login in to access this endpoint")
+		return
+	}
 	var transfer_data transferBWUsers
 	json.NewDecoder(r.Body).Decode(&transfer_data)
 
@@ -320,17 +354,28 @@ func TransferCoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//statement and updates in the same statement to solve problems during concurrency
+	var mutex = &sync.Mutex{}
+	mutex.Lock()
+
 	_, err1 := database.Exec(`UPDATE  UserData SET coins = coins + ? WHERE rollno = ?`, transfer_data.Coins, transfer_data.Rollno1)
+
+	mutex.Unlock()
 
 	if err1 != nil {
 		//if some error rollback databse to initial condition and print the error
+
 		fmt.Println("error lies in database.Exec() err1")
+		print(err1)
 		tx.Rollback()
 		return
 		// panic(err)
 	}
 
+	mutex.Lock()
+
 	_, err2 := database.Exec(`UPDATE UserData SET coins = coins - ?  WHERE rollno = ? AND coins - ? >= 0`, transfer_data.Coins, transfer_data.Rollno2, transfer_data.Coins)
+
+	mutex.Unlock()
 
 	if err2 != nil {
 		//if some error rollback databse to initial condition and print the error
@@ -339,6 +384,42 @@ func TransferCoin(w http.ResponseWriter, r *http.Request) {
 		tx.Rollback()
 		return
 	}
+	//we are here so this means transaction is successful so Commit this change to the database
 	tx.Commit()
 	fmt.Fprintf(w, "transaction is successful")
 }
+
+// c, err := r.Cookie("Tok")
+// if err != nil {
+// 	if err == http.ErrNoCookie {
+
+// 		w.WriteHeader(http.StatusUnauthorized)
+// 		fmt.Fprintf(w, "Please login to acess the page")
+
+// 	}
+
+// 	w.WriteHeader(http.StatusBadRequest)
+// 	return
+// }
+
+// tknStr := c.Value
+
+// claims := &Claims{}
+
+// tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (interface{}, error) {
+// 	return jwtKey, nil
+// })
+
+// if err != nil {
+// 	if err == jwt.ErrSignatureInvalid {
+// 		w.WriteHeader(http.StatusUnauthorized)
+// 		return
+// 	}
+// 	w.WriteHeader(http.StatusBadRequest)
+// 	return
+// }
+
+// if !tkn.Valid {
+// 	w.WriteHeader(http.StatusUnauthorized)
+// 	return
+// }
