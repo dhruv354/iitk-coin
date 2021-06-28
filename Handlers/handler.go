@@ -36,10 +36,18 @@ type UserCoins struct {
 }
 
 type transferBWUsers struct {
-	Rollno1 int `json:"rollno1"` //receiver rollno
-	Rollno2 int `json:"rollno2"` //sender rollno
-	Coins   int `json:"coins"`   //Coins to be transfered
+	ReceiverRollno int `json:"rollno"` //receiver rollno
+	Coins          int `json:"coins"`  //Coins to be transfered
 }
+
+// type transactionHistory struct {
+// 	Sender             int    //roll no of sender
+// 	Receiver           int    //roll no of receiver
+// 	transaction_amount int    //coins transfered
+// 	isAward            int    //if it is a  award or another person transfered to it
+// 	dateAndTime        string //timestanp
+// 	redeems            int    //redeems
+// }
 
 /*****************login route handler ******************************/
 func LoginRoute(w http.ResponseWriter, r *http.Request) {
@@ -310,6 +318,14 @@ func AddCoins(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sqlite3Func.UpdateUserCoins(database, user_coins.Rollno, user_coins.Coins)
+
+	// no redeem
+	dateAndTime := time.Now().String() //current time
+
+	sqlite3Func.UpdateTransactionHistory(database, 190294, user_coins.Rollno, user_coins.Coins, 1, 0, dateAndTime)
+
+	// sqlite3Func.DisplayTransactionTable(database)
+
 	fmt.Fprintf(w, "added coins in your wallet")
 
 }
@@ -324,23 +340,31 @@ func TransferCoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isLogged, _ := utility.IsLoggedin(w, r)
+	isLogged, claims := utility.IsLoggedin(w, r)
 	if !isLogged {
 		fmt.Fprintf(w, "first login in to access this endpoint")
 		return
 	}
-	var transfer_data transferBWUsers
-	json.NewDecoder(r.Body).Decode(&transfer_data)
 
 	database, err := sql.Open("sqlite3", "../iitk-coin/Student_info.db")
 	if err != nil {
 		panic(err)
 	}
 
-	//checking if both users have an account or not
-	isUser1Exists := sqlite3Func.IsUserExists(database, transfer_data.Rollno1)
+	//check if the user has participated in any of the events
 
-	isUser2Exists := sqlite3Func.IsUserExists(database, transfer_data.Rollno2)
+	if !sqlite3Func.IsAwardExist(database, claims.Rollno) {
+		fmt.Fprintf(w, "you haven't participated in any of the events so you can't send money to anyone")
+		return
+	}
+
+	var transfer_data transferBWUsers
+	json.NewDecoder(r.Body).Decode(&transfer_data)
+
+	//checking if both users have an account or not
+	isUser1Exists := sqlite3Func.IsUserExists(database, transfer_data.ReceiverRollno)
+
+	isUser2Exists := sqlite3Func.IsUserExists(database, claims.Rollno)
 
 	if !isUser1Exists || !isUser2Exists {
 		fmt.Fprintf(w, "Either user1 or user2 does not exists")
@@ -354,10 +378,21 @@ func TransferCoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//statement and updates in the same statement to solve problems during concurrency
+	sender_batch := sqlite3Func.FindBatch(database, claims.Rollno)
+	receiver_batch := sqlite3Func.FindBatch(database, transfer_data.ReceiverRollno)
+
+	var tax float32
+
+	if sender_batch == receiver_batch {
+		tax = 0.2
+	} else {
+		tax = 0.33
+	}
+
 	var mutex = &sync.Mutex{}
 	mutex.Lock()
 
-	_, err1 := database.Exec(`UPDATE  UserData SET coins = coins + ? WHERE rollno = ?`, transfer_data.Coins, transfer_data.Rollno1)
+	_, err1 := database.Exec(`UPDATE  UserData SET coins = coins + ? WHERE rollno = ?`, int((1-tax)*float32(transfer_data.Coins)), transfer_data.ReceiverRollno)
 
 	mutex.Unlock()
 
@@ -373,7 +408,7 @@ func TransferCoin(w http.ResponseWriter, r *http.Request) {
 
 	mutex.Lock()
 
-	_, err2 := database.Exec(`UPDATE UserData SET coins = coins - ?  WHERE rollno = ? AND coins - ? >= 0`, transfer_data.Coins, transfer_data.Rollno2, transfer_data.Coins)
+	_, err2 := database.Exec(`UPDATE UserData SET coins = coins - ?  WHERE rollno = ? AND coins - ? >= 0`, transfer_data.Coins, claims.Rollno, transfer_data.Coins)
 
 	mutex.Unlock()
 
@@ -386,6 +421,10 @@ func TransferCoin(w http.ResponseWriter, r *http.Request) {
 	}
 	//we are here so this means transaction is successful so Commit this change to the database
 	tx.Commit()
+
+	//save this transaction history
+	sqlite3Func.UpdateTransactionHistory(database, claims.Rollno, transfer_data.ReceiverRollno, transfer_data.Coins,
+		0, 0, time.Now().String())
 	fmt.Fprintf(w, "transaction is successful")
 }
 

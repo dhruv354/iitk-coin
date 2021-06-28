@@ -3,7 +3,6 @@ package utility
 import (
 	"fmt"
 	"net/http"
-	"sync"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
@@ -39,9 +38,6 @@ func DoesPasswordsMatch(existing_password string, entered_password []byte) bool 
 
 func IsLoggedin(w http.ResponseWriter, r *http.Request) (bool, *Claims) {
 
-	var mutex = &sync.Mutex{}
-	mutex.Lock()
-
 	fmt.Println("inside IsLogged In function")
 	cookie, err := r.Cookie("my_json_token")
 	fmt.Println("cookie : ", cookie)
@@ -51,11 +47,10 @@ func IsLoggedin(w http.ResponseWriter, r *http.Request) (bool, *Claims) {
 			//if cookie is not there
 			w.WriteHeader(http.StatusUnauthorized)
 			fmt.Fprintf(w, "you are not authorized to access this page")
-			mutex.Unlock()
+
 		}
 		// handling other types of errors
 		w.WriteHeader(http.StatusBadRequest)
-		mutex.Unlock()
 		return false, nil
 	}
 	//access cookie value present
@@ -71,23 +66,23 @@ func IsLoggedin(w http.ResponseWriter, r *http.Request) (bool, *Claims) {
 	if err != nil {
 		if err == jwt.ErrSignatureInvalid {
 			w.WriteHeader(http.StatusUnauthorized)
-			mutex.Unlock()
+
 			return false, nil
 		}
 		fmt.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
-		mutex.Unlock()
+
 		return false, nil
 	}
 
 	if !tkn.Valid {
 		print("5th")
 		w.WriteHeader(http.StatusUnauthorized)
-		mutex.Unlock()
+
 		return false, nil
 	}
 	fmt.Println("IsLogged In function retured true")
-	mutex.Unlock()
+
 	return true, claims
 }
 

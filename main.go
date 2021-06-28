@@ -49,12 +49,12 @@ func UserCoinTable(db *sql.DB) {
 }
 
 func createTransactionTable(db *sql.DB) {
-	transaction := `CREATE TABLE IF NOT EXISTS Transaction_history(
+	transaction := `CREATE TABLE IF NOT EXISTS Transactionhistory(
 		"rollno" INTEGER UNSIGNED NOT NULL,
-		"rewards" INTEGER UNSIGNED NOT NULL,
+		"isReward" INTEGER ,
 		"transfered_to" INTEGER UNSIGNED NOT NULL,
-		"transfered_amount" INTEGER UNSIGNED NOT NULL,
-		"redeems" INTEGER UNSIGNED NOT NULL,
+		"transfered_amount" INTEGER NOT NULL,
+		"redeems" INTEGER,
 		"date" TEXT NOT NULL
 		);`
 	statement, err := db.Prepare(transaction)
@@ -64,6 +64,25 @@ func createTransactionTable(db *sql.DB) {
 	statement.Exec()
 	fmt.Println("trasaction  table created")
 }
+
+// func createTransactionTable(db *sql.DB) {
+// 	transaction := `CREATE TABLE IF NOT EXISTS Transaction(
+// 		"sender" INT UNSIGNED NOT NULL,
+// 		"isReward" INT ,
+// 		"receiver" INT UNSIGNED NOT NULL,
+// 		"amount" INT NOT NULL,
+// 		"redeem" INT ,
+// 		"datetime" TEXT NOT NULL
+// 		);`
+// 	statement, err := db.Prepare(transaction)
+// 	if err != nil {
+// 		print("here")
+// 		fmt.Println(err)
+// 		// panic(err)
+// 	}
+// 	statement.Exec()
+// 	fmt.Println("trasaction  table created")
+// }
 
 func main() {
 	database, err := sql.Open("sqlite3", "./Student_info.db")
@@ -85,5 +104,6 @@ func main() {
 	http.HandleFunc("/transfercoins", handler.TransferCoin)
 	// start the server on port 8080
 
+	// sqlite3Func.DisplayTransactionTable(database)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
