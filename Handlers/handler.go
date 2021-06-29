@@ -17,6 +17,8 @@ import (
 
 var jwt_key = []byte("dhruv_singhal")
 
+var m sync.Mutex
+
 type UserData struct {
 	Name     string `json:"name"`
 	Rollno   int    `json:"rollno"`
@@ -324,7 +326,7 @@ func AddCoins(w http.ResponseWriter, r *http.Request) {
 
 	sqlite3Func.UpdateTransactionHistory(database, 190294, user_coins.Rollno, user_coins.Coins, 1, 0, dateAndTime)
 
-	// sqlite3Func.DisplayTransactionTable(database)
+	sqlite3Func.DisplayTransactionTable(database)
 
 	fmt.Fprintf(w, "added coins in your wallet")
 
@@ -384,34 +386,31 @@ func TransferCoin(w http.ResponseWriter, r *http.Request) {
 	var tax float32
 
 	if sender_batch == receiver_batch {
-		tax = 0.2
+		tax = 0.02
 	} else {
 		tax = 0.33
 	}
 
-	var mutex = &sync.Mutex{}
-	mutex.Lock()
+	fmt.Println("tax : ", tax)
 
-	_, err1 := database.Exec(`UPDATE  UserData SET coins = coins + ? WHERE rollno = ?`, int((1-tax)*float32(transfer_data.Coins)), transfer_data.ReceiverRollno)
+	fmt.Println("no error here")
+	fmt.Println(transfer_data.ReceiverRollno)
 
-	mutex.Unlock()
+	money_received := ((1 - tax) * float32(transfer_data.Coins))
 
+	_, err1 := database.Exec(`UPDATE  UserData SET coins = coins + ? WHERE rollno = ?`, money_received, transfer_data.ReceiverRollno)
 	if err1 != nil {
-		//if some error rollback databse to initial condition and print the error
 
-		fmt.Println("error lies in database.Exec() err1")
-		print(err1)
+		fmt.Println(err1)
 		tx.Rollback()
 		return
 		// panic(err)
 	}
 
-	mutex.Lock()
-
+	m.Lock()
 	_, err2 := database.Exec(`UPDATE UserData SET coins = coins - ?  WHERE rollno = ? AND coins - ? >= 0`, transfer_data.Coins, claims.Rollno, transfer_data.Coins)
 
-	mutex.Unlock()
-
+	defer m.Unlock()
 	if err2 != nil {
 		//if some error rollback databse to initial condition and print the error
 		fmt.Println(err2)

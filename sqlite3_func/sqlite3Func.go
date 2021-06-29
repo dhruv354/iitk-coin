@@ -28,7 +28,7 @@ func IsUserExists(db *sql.DB, rollno int) bool {
 	defer m.Unlock()
 
 	fmt.Println("inside isUser exists function")
-	row := db.QueryRow("SELECT rollno  from User where rollno= ? ", rollno)
+	row := db.QueryRow("SELECT rollno  from User where rollno= ?", rollno)
 	temp := -1
 	row.Scan(&temp)
 	return temp != -1
@@ -45,7 +45,7 @@ func IsUserCoinExists(db *sql.DB, rollno int) bool {
 
 func InsertIntoTable(db *sql.DB, name string, rollno int, batch int, password string) {
 	m.Lock()
-	defer m.Unlock()
+
 	fmt.Println("inside insetintotable")
 
 	insertStudent_info := `INSERT INTO User(rollno, name, password, batch, isAdmin, events) VALUES(?, ?, ?, ?, ?, ?)`
@@ -61,15 +61,18 @@ func InsertIntoTable(db *sql.DB, name string, rollno int, batch int, password st
 	} else {
 		insertStudent.Exec(rollno, name, password, batch, 0, 0)
 	}
+	m.Unlock()
 
 	//when that user is added in the main table also create
 	//its entry in USerData table
+	m.Lock()
 	insertcoin_info := `INSERT INTO UserData(rollno, coins) VALUES(?, ?)`
 	statement, err := db.Prepare(insertcoin_info)
 	if err != nil {
 		panic(err)
 	}
 	statement.Exec(rollno, 0)
+	m.Unlock()
 
 	fmt.Println("inserted Student with 0 coins in the table")
 }
@@ -88,6 +91,7 @@ func UpdateUserCoins(db *sql.DB, rollno int, coins int) {
 }
 
 func UpdateTransactionHistory(db *sql.DB, Sender int, Receiver int, transaction_Amount int, isAward int, redeems int, dateAndTime string) {
+
 	fmt.Println(Sender)
 	fmt.Println(Receiver)
 	fmt.Println(transaction_Amount)
@@ -96,29 +100,27 @@ func UpdateTransactionHistory(db *sql.DB, Sender int, Receiver int, transaction_
 	fmt.Println(dateAndTime)
 	fmt.Println("inside UpdateTransactionHistory Function")
 	fmt.Println(db)
-	_, err := db.Exec(`INSERT INTO Transactionhistory(rollno, isReward, transfered_to, transfered_amount, redeems, date) VALUES(?, ?, ?, ?, ?, ?)`, Sender, isAward, Receiver, transaction_Amount, redeems, dateAndTime)
-	// `INSERT INTO UserData(rollno, coins) VALUES(?, ?)`
+
+	addtrans, err := db.Prepare(`INSERT INTO EVENTS(sender,receiver,amount,isreward,date, redeem) VALUES(?,?,?,?,?,?)`)
+
 	if err != nil {
-		fmt.Println(err)
 		panic(err)
 	}
-	// statement.Exec(Sender, isAward, Receiver, transaction_Amount, redeems, dateAndTime)
+	addtrans.Exec(Sender, Receiver, transaction_Amount, isAward, dateAndTime, redeems)
 	fmt.Println("successfully updates transaction history Table")
 }
 
 func IsAwardExist(db *sql.DB, rollno int) bool {
 
-	m.Lock()
-	defer m.Unlock()
-
 	fmt.Println("inside IsAwardExist Function")
 
-	rows, err := db.Query(`SELECT isReward from Transactionhistory WHERE rollno = ? `, rollno)
+	rows, err := db.Query("SELECT isreward from EVENTS WHERE receiver = ? ", rollno)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("here")
 	var isAward int
+	defer rows.Close()
 	for rows.Next() {
 		rows.Scan(&isAward)
 		if isAward == 1 {
@@ -146,13 +148,12 @@ func IsAwardExist(db *sql.DB, rollno int) bool {
 }
 
 func FindBatch(db *sql.DB, rollno int) int {
-	m.Lock()
-	defer m.Unlock()
 
-	rows, err := db.Query(`SELECT batch from User WHERE rollno = ?`, rollno)
+	rows, err := db.Query("SELECT batch from User WHERE rollno = ?", rollno)
 	if err != nil {
 		panic(err)
 	}
+	defer rows.Close()
 	var batch int
 	rows.Scan(&batch)
 
@@ -163,18 +164,17 @@ func DisplayTransactionTable(db *sql.DB) {
 	m.Lock()
 	defer m.Unlock()
 
-	rows, err := db.Query(`SELECT rollno, transfered_to, transfered_amount, isReward, date FROM Transactionhistory`)
+	rows, err := db.Query("SELECT sender, receiver, isreward FROM  EVENTS")
 	if err != nil {
 		fmt.Println(err)
 		panic(err)
 	}
 	var rollno int
 	var receiver_rollno int
-	var coins_transfered int
-	var date string
+	var isaward int
 
 	for rows.Next() {
-		rows.Scan(&rollno, &receiver_rollno, &coins_transfered, &date)
-		fmt.Println(rollno, " ", receiver_rollno, " ", coins_transfered, " ", date, " ")
+		rows.Scan(&rollno, &receiver_rollno, &isaward)
+		fmt.Println(rollno, " ", receiver_rollno, " ", isaward)
 	}
 }

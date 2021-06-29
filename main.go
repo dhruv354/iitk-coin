@@ -19,7 +19,7 @@ func createSqliteTable(db *sql.DB) {
 		"name" TEXT NOT NULL,
 		"password" TEXT NOT NULL,
 		"batch" INT UNSIGNED  NOT NULL,
-		"isAdmin" INT UNSIGNED NOT NULL,
+		"isadmin" INT UNSIGNED NOT NULL,
 		"events" INT UNSIGNED NOT NULL
 		);`
 	//create table with above info
@@ -49,20 +49,33 @@ func UserCoinTable(db *sql.DB) {
 }
 
 func createTransactionTable(db *sql.DB) {
-	transaction := `CREATE TABLE IF NOT EXISTS Transactionhistory(
-		"rollno" INTEGER UNSIGNED NOT NULL,
-		"isReward" INTEGER ,
-		"transfered_to" INTEGER UNSIGNED NOT NULL,
-		"transfered_amount" INTEGER NOT NULL,
-		"redeems" INTEGER,
-		"date" TEXT NOT NULL
-		);`
-	statement, err := db.Prepare(transaction)
+	// transaction := `CREATE TABLE IF NOT EXISTS Transaction(
+	// 	"rollno" INTEGER UNSIGNED NOT NULL,
+	// 	"isreward" INTEGER UNSIGNED NOT NULL,
+	// 	"transferedto" INTEGER UNSIGNED NOT NULL,
+	// 	"transferedamount" INTEGER NOT NULL,
+	// 	"redeems" INTEGER UNSIGNED NOT NULL,
+	// 	"date" TEXT NOT NULL
+	// 	);`
+	// statement, err := db.Prepare(`CREATE TABLE IF NOT EXISTS TRANSACTION(
+	// 	"rollno" INTEGER UNSIGNED NOT NULL,
+	// 	"reward" INTEGER UNSIGNED NOT NULL,
+	// 	"receiver" INTEGER UNSIGNED NOT NULL
+
+	// 	);`)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	return
+	// }
+	// statement.Exec()
+	// fmt.Println("trasaction  table created")
+
+	table, err := db.Prepare(`CREATE TABLE IF NOT EXISTS EVENTS("sender" INTEGER UNSIGNED NOT NULL,"receiver" INTEGER UNSIGNED NOT NULL,"amount" INTEGER UNSIGNED NOT NULL,"isreward" INTEGER UNSIGNED NOT NULL DEFAULT 0,"date" TEXT NOT NULL, "redeem" INTEGER NOT NULL);`)
 	if err != nil {
 		panic(err)
 	}
-	statement.Exec()
-	fmt.Println("trasaction  table created")
+
+	table.Exec()
 }
 
 // func createTransactionTable(db *sql.DB) {
