@@ -178,3 +178,28 @@ func DisplayTransactionTable(db *sql.DB) {
 		fmt.Println(rollno, " ", receiver_rollno, " ", isaward)
 	}
 }
+
+func GetUserCoins(db *sql.DB, rollno int) int {
+	m.Lock()
+	defer m.Unlock()
+
+	fmt.Println("inside GetUSerCoins function")
+	row := db.QueryRow("SELECT coins  from UserData where rollno= ?", rollno)
+	var temp int
+	row.Scan(&temp)
+	return temp
+}
+
+func RedeemCoins(db *sql.DB, rollno int, coins int) {
+	m.Lock()
+	defer m.Unlock()
+	fmt.Println("inside RedeemCoins Function")
+	fmt.Println(coins)
+	// updateCoins := `UPDATE USERDATA SET coins = coins + ? WHERE rollno = ?`
+	statement, err := db.Exec("UPDATE USERDATA SET coins = coins - ? WHERE rollno = ?", coins, rollno)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(statement)
+
+}

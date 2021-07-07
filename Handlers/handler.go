@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -16,8 +15,6 @@ import (
 )
 
 var jwt_key = []byte("dhruv_singhal")
-
-var m sync.Mutex
 
 type UserData struct {
 	Name     string `json:"name"`
@@ -396,23 +393,22 @@ func TransferCoin(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("no error here")
 	fmt.Println(transfer_data.ReceiverRollno)
 
-	money_received := ((1 - tax) * float32(transfer_data.Coins))
+	money_sent := ((1 + tax) * float32(transfer_data.Coins))
 
-	_, err1 := database.Exec(`UPDATE  UserData SET coins = coins + ? WHERE rollno = ?`, money_received, transfer_data.ReceiverRollno)
+	_, err1 := database.Exec(`UPDATE  UserData SET coins = coins + ? WHERE rollno = ?`, transfer_data.Coins, transfer_data.ReceiverRollno)
 	if err1 != nil {
-
+		fmt.Println("inside err1")
 		fmt.Println(err1)
 		tx.Rollback()
 		return
 		// panic(err)
 	}
 
-	m.Lock()
-	_, err2 := database.Exec(`UPDATE UserData SET coins = coins - ?  WHERE rollno = ? AND coins - ? >= 0`, transfer_data.Coins, claims.Rollno, transfer_data.Coins)
+	_, err2 := database.Exec(`UPDATE UserData SET coins = coins - ?  WHERE rollno = ? AND coins - ? >= 0`, money_sent, claims.Rollno, money_sent)
 
-	defer m.Unlock()
 	if err2 != nil {
 		//if some error rollback databse to initial condition and print the error
+		fmt.Println("inside err2")
 		fmt.Println(err2)
 		fmt.Println("error lies in database.Exec() err2")
 		tx.Rollback()
@@ -427,37 +423,45 @@ func TransferCoin(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "transaction is successful")
 }
 
-// c, err := r.Cookie("Tok")
-// if err != nil {
-// 	if err == http.ErrNoCookie {
+/**********************function to perform redeeming of COins**************/
 
-// 		w.WriteHeader(http.StatusUnauthorized)
-// 		fmt.Fprintf(w, "Please login to acess the page")
+func RedeemCoin(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		fmt.Fprintf(w, "currently not dealing in get request, please make a post request only")
+		return
+	}
+	database, err := sql.Open("sqlite3", "../iitk-coin/Student_info.db")
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
 
-// 	}
+	isLogged, claims := utility.IsLoggedin(w, r)
+	if !isLogged {
+		fmt.Fprintf(w, "first login in to access this endpoint")
+		return
+	}
+	var user_data UserCoins
+	json.NewDecoder(r.Body).Decode(&user_data)
 
-// 	w.WriteHeader(http.StatusBadRequest)
-// 	return
-// }
+	current_coins := sqlite3Func.GetUserCoins(database, claims.Rollno)
+	if current_coins < user_data.Coins {
+		fmt.Fprintf(w, "you don't have enough coins to be redeemed")
+		return
+	}
 
-// tknStr := c.Value
+	//check award existence
+	if !sqlite3Func.IsAwardExist(database, claims.Rollno) {
+		fmt.Fprintf(w, "you haven't participated in any of the events so you can't redeem money")
+		return
+	}
 
-// claims := &Claims{}
+	//redeem coins
+	sqlite3Func.RedeemCoins(database, claims.Rollno, user_data.Coins)
+	//update transaction history table
+	dateAndTime := time.Now().String() //current time
 
-// tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (interface{}, error) {
-// 	return jwtKey, nil
-// })
-
-// if err != nil {
-// 	if err == jwt.ErrSignatureInvalid {
-// 		w.WriteHeader(http.StatusUnauthorized)
-// 		return
-// 	}
-// 	w.WriteHeader(http.StatusBadRequest)
-// 	return
-// }
-
-// if !tkn.Valid {
-// 	w.WriteHeader(http.StatusUnauthorized)
-// 	return
-// }
+	sqlite3Func.UpdateTransactionHistory(database, claims.Rollno, claims.Rollno, user_data.Coins, 0, 1, dateAndTime)
+	fmt.Println("successfully redeemed coins")
+	sqlite3Func.DisplayTransactionTable(database)
+}

@@ -49,27 +49,6 @@ func UserCoinTable(db *sql.DB) {
 }
 
 func createTransactionTable(db *sql.DB) {
-	// transaction := `CREATE TABLE IF NOT EXISTS Transaction(
-	// 	"rollno" INTEGER UNSIGNED NOT NULL,
-	// 	"isreward" INTEGER UNSIGNED NOT NULL,
-	// 	"transferedto" INTEGER UNSIGNED NOT NULL,
-	// 	"transferedamount" INTEGER NOT NULL,
-	// 	"redeems" INTEGER UNSIGNED NOT NULL,
-	// 	"date" TEXT NOT NULL
-	// 	);`
-	// statement, err := db.Prepare(`CREATE TABLE IF NOT EXISTS TRANSACTION(
-	// 	"rollno" INTEGER UNSIGNED NOT NULL,
-	// 	"reward" INTEGER UNSIGNED NOT NULL,
-	// 	"receiver" INTEGER UNSIGNED NOT NULL
-
-	// 	);`)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return
-	// }
-	// statement.Exec()
-	// fmt.Println("trasaction  table created")
-
 	table, err := db.Prepare(`CREATE TABLE IF NOT EXISTS EVENTS("sender" INTEGER UNSIGNED NOT NULL,"receiver" INTEGER UNSIGNED NOT NULL,"amount" INTEGER UNSIGNED NOT NULL,"isreward" INTEGER UNSIGNED NOT NULL DEFAULT 0,"date" TEXT NOT NULL, "redeem" INTEGER NOT NULL);`)
 	if err != nil {
 		panic(err)
@@ -77,25 +56,6 @@ func createTransactionTable(db *sql.DB) {
 
 	table.Exec()
 }
-
-// func createTransactionTable(db *sql.DB) {
-// 	transaction := `CREATE TABLE IF NOT EXISTS Transaction(
-// 		"sender" INT UNSIGNED NOT NULL,
-// 		"isReward" INT ,
-// 		"receiver" INT UNSIGNED NOT NULL,
-// 		"amount" INT NOT NULL,
-// 		"redeem" INT ,
-// 		"datetime" TEXT NOT NULL
-// 		);`
-// 	statement, err := db.Prepare(transaction)
-// 	if err != nil {
-// 		print("here")
-// 		fmt.Println(err)
-// 		// panic(err)
-// 	}
-// 	statement.Exec()
-// 	fmt.Println("trasaction  table created")
-// }
 
 func main() {
 	database, err := sql.Open("sqlite3", "./Student_info.db")
@@ -115,6 +75,7 @@ func main() {
 	http.HandleFunc("/getcoins", handler.GetUserCoins)
 	http.HandleFunc("/addcoins", handler.AddCoins)
 	http.HandleFunc("/transfercoins", handler.TransferCoin)
+	http.HandleFunc("/redeemcoins", handler.RedeemCoin)
 	// start the server on port 8080
 
 	// sqlite3Func.DisplayTransactionTable(database)
