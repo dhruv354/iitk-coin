@@ -39,6 +39,15 @@ type transferBWUsers struct {
 	Coins          int `json:"coins"`  //Coins to be transfered
 }
 
+type ItemRedeem struct {
+	Item  string `json:"item"`  //item to be redeemed
+	Coins int    `json:"coins"` //price of coins to be redeemed
+}
+
+type RequestId struct {
+	Id int `json:"id"` //id of the user
+}
+
 // type transactionHistory struct {
 // 	Sender             int    //roll no of sender
 // 	Receiver           int    //roll no of receiver
@@ -464,4 +473,85 @@ func RedeemCoin(w http.ResponseWriter, r *http.Request) {
 	sqlite3Func.UpdateTransactionHistory(database, claims.Rollno, claims.Rollno, user_data.Coins, 0, 1, dateAndTime)
 	fmt.Println("successfully redeemed coins")
 	sqlite3Func.DisplayTransactionTable(database)
+}
+
+/*************Handler to make redeem requests for a particular item*******************/
+
+func HandleRedeems(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Println("inside HandleRedeems function")
+
+	if r.Method == "GET" {
+		fmt.Fprintf(w, "only post requests are allowed")
+		return
+	}
+
+	//connect with your database
+	database, err := sql.Open("sqlite3", "../iitk-coin/Student_info.db")
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+
+	//check if user is logged in or not
+	isLogged, claims := utility.IsLoggedin(w, r)
+	if !isLogged {
+		fmt.Fprintf(w, "first login in to access this endpoint")
+		return
+	}
+
+	var item_redeem ItemRedeem
+	json.NewDecoder(r.Body).Decode(&item_redeem)
+
+	//find present coins of the user
+	current_coins := sqlite3Func.GetUserCoins(database, claims.Rollno)
+
+	if current_coins < item_redeem.Coins {
+		fmt.Fprintf(w, "you  dont have enough coins to be redeemed")
+		return
+	}
+
+	//make a redeem request
+	sqlite3Func.InsertIntoRedeemRequest(database, claims.Rollno, item_redeem.Coins, item_redeem.Item, time.Now().String())
+
+	sqlite3Func.DisplayRedeemTable(database)
+
+	fmt.Fprintf(w, "you have put a redeem request, admin will approve it shortly")
+}
+
+func AdminRedeemApproval(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("inside admin redeem approval")
+
+	if r.Method == "GET" {
+		fmt.Fprintf(w, "sorry! only a post request can be made")
+		return
+	}
+
+	//check if user is logged in or not
+	isLogged, claims := utility.IsLoggedin(w, r)
+	if !isLogged {
+		fmt.Fprintf(w, "first login in to access this endpoint")
+		return
+	}
+
+	if claims.Rollno != 190294 {
+		fmt.Fprintf(w, "you are not a admin so cannot access this endpoint")
+		return
+	}
+
+	//connect with your database
+	database, err := sql.Open("sqlite3", "../iitk-coin/Student_info.db")
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+
+	var request_id RequestId
+	json.NewDecoder(r.Body).Decode(&request_id)
+	fmt.Println(r.Body)
+	fmt.Println(request_id.Id)
+
+	sqlite3Func.ApproveStatus(database, request_id.Id)
+	fmt.Fprintf(w, "your admin status is successfully approved")
+
 }

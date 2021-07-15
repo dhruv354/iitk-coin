@@ -57,6 +57,15 @@ func createTransactionTable(db *sql.DB) {
 	table.Exec()
 }
 
+func createRedeemTable(db *sql.DB) {
+	table, err := db.Prepare(`CREATE TABLE IF NOT EXISTS REDEEMREQUESTS("id" INTEGER PRIMARY KEY, "rollno" INTEGER UNSIGNED NOT NULL, "item" TEXT NOT NULL, "coins" INTEGER UNSIGNED NOT NULL, "status" INTEGER NOT NULL DEFAULT 0, "date" TEXT NOT NULL)`)
+
+	if err != nil {
+		panic(err)
+	}
+	table.Exec()
+}
+
 func main() {
 	database, err := sql.Open("sqlite3", "./Student_info.db")
 	if err != nil {
@@ -67,6 +76,7 @@ func main() {
 	createSqliteTable(database)
 	UserCoinTable(database)
 	createTransactionTable(database)
+	createRedeemTable(database)
 	// "Signin" and "Welcome" are the handlers that we will implement
 	http.HandleFunc("/login", handler.LoginRoute)
 	http.HandleFunc("/secretpage", handler.Secretpage)
@@ -76,6 +86,8 @@ func main() {
 	http.HandleFunc("/addcoins", handler.AddCoins)
 	http.HandleFunc("/transfercoins", handler.TransferCoin)
 	http.HandleFunc("/redeemcoins", handler.RedeemCoin)
+	http.HandleFunc("/itemredeem", handler.HandleRedeems)
+	http.HandleFunc("/adminApproval", handler.AdminRedeemApproval)
 	// start the server on port 8080
 
 	// sqlite3Func.DisplayTransactionTable(database)

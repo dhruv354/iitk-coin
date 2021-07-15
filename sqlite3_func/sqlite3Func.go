@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"sync"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -45,6 +46,7 @@ func IsUserCoinExists(db *sql.DB, rollno int) bool {
 
 func InsertIntoTable(db *sql.DB, name string, rollno int, batch int, password string) {
 	m.Lock()
+	defer m.Unlock()
 
 	fmt.Println("inside insetintotable")
 
@@ -61,18 +63,16 @@ func InsertIntoTable(db *sql.DB, name string, rollno int, batch int, password st
 	} else {
 		insertStudent.Exec(rollno, name, password, batch, 0, 0)
 	}
-	m.Unlock()
 
 	//when that user is added in the main table also create
 	//its entry in USerData table
-	m.Lock()
+
 	insertcoin_info := `INSERT INTO UserData(rollno, coins) VALUES(?, ?)`
 	statement, err := db.Prepare(insertcoin_info)
 	if err != nil {
 		panic(err)
 	}
 	statement.Exec(rollno, 0)
-	m.Unlock()
 
 	fmt.Println("inserted Student with 0 coins in the table")
 }
@@ -201,5 +201,73 @@ func RedeemCoins(db *sql.DB, rollno int, coins int) {
 		panic(err)
 	}
 	fmt.Println(statement)
+
+}
+
+func InsertIntoRedeemRequest(db *sql.DB, rollno int, coins int, item string, dateAndTime string) {
+
+	fmt.Println("inside insertintoredeem request")
+
+	insertRedeemRequest := `INSERT INTO REDEEMREQUESTS(rollno, coins, item, status, date) VALUES(?, ?, ?, ?, ?)`
+
+	statement, err := db.Prepare(insertRedeemRequest)
+
+	if err != nil {
+		panic(err)
+	}
+	print(rollno, coins, item, 0, dateAndTime)
+	statement.Exec(rollno, coins, item, 0, dateAndTime)
+	fmt.Println("Made  a redeem request of item", item)
+}
+
+func DisplayRedeemTable(db *sql.DB) {
+	rows, err := db.Query("SELECT rollno, coins, item FROM  REDEEMREQUESTS")
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+	var rollno int
+	var coins int
+	var item string
+
+	for rows.Next() {
+		rows.Scan(&rollno, &coins, &item)
+		fmt.Println(rollno, " ", coins, " ", item)
+	}
+}
+
+// function to check a particular id in redeem request table and if it exists then check pending or unpending request
+
+func ApproveStatus(db *sql.DB, id int) {
+
+	fmt.Println("inside approve status for admin")
+
+	row := db.QueryRow("SELECT rollno, coins, status from REDEEMREQUESTS where id= ?", id)
+	coins := -1
+	rollno := -1
+	status := -1
+	row.Scan(&rollno, &coins, &status)
+	if rollno == -1 {
+		fmt.Println("this id do not exist")
+		return
+	}
+
+	//now update status of the pending request
+	_, err := db.Exec(`UPDATE REDEEMREQUESTS SET status = ? WHERE id = ?`, 1, id)
+
+	if err != nil {
+		panic(err)
+	}
+
+	//now update the coins of the user
+	_, err = db.Exec(`UPDATE UserData SET coins = coins - ? WHERE rollno = ?`, coins, rollno)
+
+	if err != nil {
+		panic(err)
+	}
+
+	//update transaction history table
+	UpdateTransactionHistory(db, rollno, rollno, coins, 0, 1, time.Now().String())
+	// DisplayTransactionTable(db)
 
 }
