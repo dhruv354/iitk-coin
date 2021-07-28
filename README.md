@@ -90,14 +90,17 @@ POST requests take place via `JSON` requests. A typical usage would look like
 - `/itemredeem` : `POST`
 ```json
 {"item":"<Id of redeem request>", "coins":"<price of that item>"}
+```
 
 - `/adminApproval` : `POST`
 ```json
 {"item":"<Id of redeem request>"}
+```
 
 - `/addcoins` : `POST`
 ```json
 {"coins":"<Coins to reward>", "rollno":"<rollno to which coin will be rewarded>"}
+```
 
 - `/transfercoins` : `POST`
 ```json
