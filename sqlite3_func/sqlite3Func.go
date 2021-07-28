@@ -1,6 +1,7 @@
 package sqlite3Func
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"sync"
@@ -21,7 +22,6 @@ import (
 // type row struct {
 // 	Count int `json:"count"`
 // }
-
 var m sync.Mutex
 
 func IsUserExists(db *sql.DB, rollno int) bool {
@@ -36,8 +36,7 @@ func IsUserExists(db *sql.DB, rollno int) bool {
 }
 
 func IsUserCoinExists(db *sql.DB, rollno int) bool {
-	m.Lock()
-	defer m.Unlock()
+
 	row := db.QueryRow("SELECT rollno  from UserData where rollno= ? ", rollno)
 	temp := -1
 	row.Scan(&temp)
@@ -45,8 +44,6 @@ func IsUserCoinExists(db *sql.DB, rollno int) bool {
 }
 
 func InsertIntoTable(db *sql.DB, name string, rollno int, batch int, password string) {
-	m.Lock()
-	defer m.Unlock()
 
 	fmt.Println("inside insetintotable")
 
@@ -78,12 +75,32 @@ func InsertIntoTable(db *sql.DB, name string, rollno int, batch int, password st
 }
 
 func UpdateUserCoins(db *sql.DB, rollno int, coins int) {
-	m.Lock()
-	defer m.Unlock()
+
+	context := context.Background()
+	tx, err := db.BeginTx(context, nil)
+
+	if err != nil {
+		panic(err)
+	}
+
 	fmt.Println("inside InsertCoins Function")
 	fmt.Println(coins)
 	// updateCoins := `UPDATE USERDATA SET coins = coins + ? WHERE rollno = ?`
-	statement, err := db.Exec("UPDATE USERDATA SET coins = coins + ? WHERE rollno = ?", coins, rollno)
+	statement, err := db.ExecContext(context, "UPDATE USERDATA SET coins = coins + ? WHERE rollno = ?", coins, rollno)
+	if err != nil {
+		tx.Rollback()
+	}
+
+	rows_affected, err := statement.RowsAffected()
+	if err != nil {
+		panic(err)
+	}
+	if rows_affected != 1 {
+
+		tx.Rollback()
+
+	}
+	err = tx.Commit()
 	if err != nil {
 		panic(err)
 	}
@@ -92,14 +109,14 @@ func UpdateUserCoins(db *sql.DB, rollno int, coins int) {
 
 func UpdateTransactionHistory(db *sql.DB, Sender int, Receiver int, transaction_Amount int, isAward int, redeems int, dateAndTime string) {
 
-	fmt.Println(Sender)
-	fmt.Println(Receiver)
-	fmt.Println(transaction_Amount)
-	fmt.Println(isAward)
-	fmt.Println(redeems)
-	fmt.Println(dateAndTime)
-	fmt.Println("inside UpdateTransactionHistory Function")
-	fmt.Println(db)
+	// fmt.Println(Sender)
+	// fmt.Println(Receiver)
+	// fmt.Println(transaction_Amount)
+	// fmt.Println(isAward)
+	// fmt.Println(redeems)
+	// fmt.Println(dateAndTime)
+	// fmt.Println("inside UpdateTransactionHistory Function")
+	// fmt.Println(db)
 
 	addtrans, err := db.Prepare(`INSERT INTO EVENTS(sender,receiver,amount,isreward,date, redeem) VALUES(?,?,?,?,?,?)`)
 
@@ -161,8 +178,6 @@ func FindBatch(db *sql.DB, rollno int) int {
 }
 
 func DisplayTransactionTable(db *sql.DB) {
-	m.Lock()
-	defer m.Unlock()
 
 	rows, err := db.Query("SELECT sender, receiver, isreward FROM  EVENTS")
 	if err != nil {
@@ -180,8 +195,6 @@ func DisplayTransactionTable(db *sql.DB) {
 }
 
 func GetUserCoins(db *sql.DB, rollno int) int {
-	m.Lock()
-	defer m.Unlock()
 
 	fmt.Println("inside GetUSerCoins function")
 	row := db.QueryRow("SELECT coins  from UserData where rollno= ?", rollno)
@@ -191,12 +204,33 @@ func GetUserCoins(db *sql.DB, rollno int) int {
 }
 
 func RedeemCoins(db *sql.DB, rollno int, coins int) {
-	m.Lock()
-	defer m.Unlock()
+
+	context := context.Background()
+	tx, err := db.BeginTx(context, nil)
+
+	if err != nil {
+		panic(err)
+	}
+
 	fmt.Println("inside RedeemCoins Function")
 	fmt.Println(coins)
 	// updateCoins := `UPDATE USERDATA SET coins = coins + ? WHERE rollno = ?`
-	statement, err := db.Exec("UPDATE USERDATA SET coins = coins - ? WHERE rollno = ?", coins, rollno)
+	statement, err := db.ExecContext(context, "UPDATE USERDATA SET coins = coins - ? WHERE rollno = ?", coins, rollno)
+	if err != nil {
+		tx.Rollback()
+		panic(err)
+	}
+
+	rows_affected, err := statement.RowsAffected()
+	if err != nil {
+		panic(err)
+	}
+
+	if rows_affected != 1 {
+		tx.Rollback()
+		panic(err)
+	}
+	err = tx.Commit()
 	if err != nil {
 		panic(err)
 	}
