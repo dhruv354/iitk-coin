@@ -84,7 +84,7 @@ POST requests take place via `JSON` requests. A typical usage would look like
 ```
 - `/redeemcoins` : `POST`
 ```json
-  {"coin":"<How much coin want to redeem>", "item":"item name"}
+  {"coin":"<How much coin want to redeem>", "item":"<item name>"}
 ```
 
 - `/itemredeem` : `POST`
